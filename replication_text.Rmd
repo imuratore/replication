@@ -1,0 +1,289 @@
+---
+title: "replication_txt"
+author: "Isabella Muratore"
+date: "November 26, 2017"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(plyr)
+library(vegan)
+library(reshape2)
+library(VennDiagram)
+
+```
+
+# Replication of figures 1, 3, and 4 of "Gene expression patterns associated with caste and reproductive status in ants: worker-specific genes are more derived than queen-specific ones" by Feldmeyer, Elsner, and Foitzik, 2013
+
+## This paper involved sequencing total RNA from four different phenotypes of female ant that occur in colonies of *Temnothorax longispinosus* 
+## This is interesting because ant colonies are composed of one or more queens and their numerous worker offspring, who are usually full-, or sometimes half-sibs in terms of parentage but who actually share 75% as opposed to 50% of their DNA with full-sibs due to haplodiploidy in ants. Nonetheless, these nearly identical genomes produce extremely different looking and behaving phenotypes.
+
+###I downloaded the gene expression spreadsheet they published and converted to csv. To do this had to combine two different sheets, one with just the expression values, and one with the p and fold change values, within the overall excel file so I could just use the one csv for all analyses.
+
+```{r}
+
+a <- read.csv("mec12490-sup-0005-TableS3.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+a 
+
+```
+## The four sampled categories of female are called queen, fertile (worker), infertile (worker), and forager (worker). The columns with those names display the reads-per-mapped-kilobase normalized expression values for the gene in each row. The columns including the word "fold" are the fold change between two categories that were compared according to their expression values. The columns containing "p" are the false discovery rate-corrected p values from Z tests comparing the expression values. The typical cutoff for significance many people (and these authors) use for gene expression is p < 0.05 and fold change > 2.  
+
+```{r}
+
+names(a)
+#the names are really long so I'm renaming the ones I need
+
+colnames(a)[colnames(a)=="Feature.ID"] <- "ID"
+colnames(a)[colnames(a)=="Annotations...RefSeq.protein.ID"] <- "annotation"
+colnames(a)[colnames(a)=="queen...Q.RNA.Seq...RPKM"] <- "queen"
+colnames(a)[colnames(a)=="fertile...FB1.RNA.Seq...RPKM"] <- "fertile"
+colnames(a)[colnames(a)=="infertile...IFB1.RNA.Seq...RPKM"] <- "infertile"
+colnames(a)[colnames(a)=="forager...W2.RNA.Seq...RPKM"] <- "forager"
+colnames(a)[colnames(a)=="Kal.s.Z.test..queen.vs.fertile.original.values...FDR.p.value.correction"] <- "queenfertile_p"
+colnames(a)[colnames(a)=="Kal.s.Z.test..queen.vs.fertile.original.values...Proportions.fold.change"] <- "queenfertile_fold"
+colnames(a)[colnames(a)=="Kal.s.Z.test..queen.vs.infertile.original.values...Proportions.fold.change"] <- "queeninfertile_fold"
+colnames(a)[colnames(a)=="Kal.s.Z.test..queen.vs.infertile.original.values...FDR.p.value.correction"] <- "queeninfertile_p"
+colnames(a)[colnames(a)=="Kal.s.Z.test..queen.vs.forager.original.values...Proportions.fold.change"] <- "queenforager_fold"
+colnames(a)[colnames(a)=="Kal.s.Z.test..queen.vs.forager.original.values...FDR.p.value.correction"] <- "queenforager_p"
+colnames(a)[colnames(a)=="Kal.s.Z.test..fertile.vs.infertile.original.values...Proportions.fold.change"] <- "fertileinfertile_fold"
+colnames(a)[colnames(a)=="Kal.s.Z.test..fertile.vs.infertile.original.values...FDR.p.value.correction"] <- "fertileinfertile_p"
+colnames(a)[colnames(a)=="Kal.s.Z.test..fertile.vs.forager.original.values...Proportions.fold.change"] <- "fertileforager_fold"
+colnames(a)[colnames(a)=="Kal.s.Z.test..fertile.vs.forager.original.values...FDR.p.value.correction"] <- "fertileforager_p"
+colnames(a)[colnames(a)=="Kal.s.Z.test..infertile.vs.forager.original.values...Proportions.fold.change"] <- "infertileforager_fold"
+colnames(a)[colnames(a)=="Kal.s.Z.test..infertile.vs.forager.original.values...FDR.p.value.correction"] <- "infertileforager_p"
+
+names(a)
+
+```
+
+
+# Figure 1a, NMDS plot
+
+## In this NMDS plot, all the genes that are significantly differentially expressed (p < 0.05 and fold change > 2) are plotted in four dimensions based on the four expression values each gene has for the four categories sampled, in a manner that should minimize "stress", or how hard it is for the compressed 2D plot to accurately depict the distances between the points. However, this NMDS particular plot does not result in finding a real minimum. The algorithm finds a somewhat low stress value to settle at but does not establish it as a minimum.
+
+```{r}
+
+#filtering for genes that have p<0.05 and fc>2 for at least one of the six different pairwise comparisons. These genes are referred to as "DEGs", differentially expressed genes 
+b <- filter(a, queenfertile_p<0.05 & abs(queenfertile_fold)>2 | queeninfertile_p<0.05 & abs(queeninfertile_fold)>2 | queenforager_p<0.05 & abs(queenforager_fold)>2 | fertileinfertile_p<0.05 & abs(fertileinfertile_fold)>2 | fertileforager_p<0.05 & abs(fertileforager_fold)>2 | infertileforager_p<0.05 & abs(infertileforager_fold)>2)
+
+#selecting just the expression values
+s <- mutate(b) %>% select(queen, fertile, infertile, forager)
+
+#performing nmds
+s.mds <- metaMDS(s)
+
+s.mds
+
+#plotting using points
+plot(s.mds, type = "p")
+
+#My NMDS plot is almost exactly the same as the published one, but mine is rotated in the opposite orientation
+
+#plotting using text to show that the red labels match up to their positions in the published figure.
+plot(s.mds, type = "t")
+
+
+```
+
+# Figure 1b, Venn diagram
+
+## This Venn diagram is supposed to show the subsets of diffentially expressed genes that were expressed in the four different categories and how these lists overlap.
+
+### The vegan package I (and the authors) used for the diagram outputs to a file, not directly to R, so I am embedding the resulting image.
+
+```{r}
+# SECOND CLOSEST
+q_nonzero <- filter(a, queen != 0 & queenfertile_p<0.05 & abs(queenfertile_fold)>2 & queeninfertile_p<0.05 & abs(queeninfertile_fold)>2 & queenforager_p<0.05 & abs(queenforager_fold)>2)
+q_nonzero <- mutate(q_nonzero) %>% select(ID)
+
+fert_nonzero <- filter(a, fertile != 0 & queenfertile_p<0.05 & abs(queenfertile_fold)>2 & fertileinfertile_p<0.05 & abs(fertileinfertile_fold)>2 & fertileforager_p<0.05 & abs(fertileforager_fold)>2)
+fert_nonzero <- mutate(fert_nonzero) %>% select(ID)
+
+infert_nonzero <- filter(a, infertile != 0 & fertileinfertile_p<0.05 & abs(fertileinfertile_fold)>2 & queeninfertile_p<0.05 & abs(queeninfertile_fold)>2 & infertileforager_p<0.05 & abs(infertileforager_fold)>2)
+infert_nonzero <- mutate(infert_nonzero) %>% select(ID)
+
+for_nonzero <- filter(a, forager != 0 & infertileforager_p<0.05 & abs(infertileforager_fold)>2 & fertileforager_p<0.05 & abs(fertileforager_fold)>2 & queenforager_p<0.05 & abs(queenforager_fold)>2)
+for_nonzero <- mutate(for_nonzero) %>% select(ID)
+
+####
+#CLOSEST
+q_nonzero <- filter(a, queen != 0 & queenfertile_p<0.05 & queeninfertile_p<0.05 & queenforager_p<0.05)
+q_nonzero <- mutate(q_nonzero) %>% select(ID)
+
+fert_nonzero <- filter(a, fertile != 0 & queenfertile_p<0.05 & fertileinfertile_p<0.05 & fertileforager_p<0.05)
+fert_nonzero <- mutate(fert_nonzero) %>% select(ID)
+
+infert_nonzero <- filter(a, infertile != 0 & fertileinfertile_p<0.05 & queeninfertile_p<0.05 & infertileforager_p<0.05)
+infert_nonzero <- mutate(infert_nonzero) %>% select(ID)
+
+for_nonzero <- filter(a, forager != 0 & infertileforager_p<0.05 & fertileforager_p<0.05 & queenforager_p<0.05)
+for_nonzero <- mutate(for_nonzero) %>% select(ID)
+
+
+venn.diagram(list(Queen=q_nonzero$ID, Forager=for_nonzero$ID, Fertile=fert_nonzero$ID, Infertile=infert_nonzero$ID), "replication_venn.tiff", fill = c("blue", "red", "yellow", "green"), cex=3,cat.cex=1.8) 
+
+```
+
+### I did not replicate figure 2 because the vast majority of the process behind that graph was not done in R. It needs to be done using BLASTx rather than R. Unfortunately the authors did not publish the raw results of the BLAST they did. 
+
+# Figure 3a, pairwise pie
+
+## This pie should show the subsets of differentially expressed genes that are statistically different based on p value and fold change between the different pairwise comparisons that can be made. 
+
+```{r}
+qfert <- filter(a, queenfertile_p<0.05 & abs(queenfertile_fold)>2)
+qfert <- mutate(qfert) %>% select(ID)
+
+qinfert <- filter(a, queeninfertile_p<0.05 & abs(queeninfertile_fold)>2)
+qinfert <- mutate(qinfert) %>% select(ID)
+
+qfor <- filter(a, queenforager_p<0.05 & abs(queenforager_fold)>2)
+qfor <- mutate(qfor) %>% select(ID)
+
+fertinfert <- filter(a, fertileinfertile_p<0.05 & abs(fertileinfertile_fold)>2)
+fertinfert <- mutate(fertinfert) %>% select(ID)
+
+fertfor <- filter(a, fertileforager_p<0.05 & abs(fertileforager_fold)>2)
+fertfor <- mutate(fertfor) %>% select(ID)
+
+infertfor <- filter(a, infertileforager_p<0.05 & abs(infertileforager_fold)>2)
+infertfor <- mutate(infertfor) %>% select(ID)
+
+slices <- c(nrow(qfert), nrow(qinfert), nrow(qfor), nrow(fertinfert), nrow(fertfor), nrow(infertfor)) 
+lbls <- c("q vs. fer", "q vs. infer", "q vs. for", "fer vs. inf", "fer vs. for", "inf vs. for")
+lbls <- paste(lbls, slices) # add percents to labels 
+pie(slices,labels = lbls, col=rainbow(length(lbls)),
+  	main="Pie Chart of Pairwise Differences")
+
+```
+
+# Figure 3b, up-regulated pie
+
+## This pie should show the subsets of differentially expressed genes that are uniquely upregulated in one category relative to all the others. 
+
+```{r}
+
+#b <- filter(a, queenfertile_p<0.05 & queenfertile_fold>2 & queeninfertile_p<0.05 & queeninfertile_fold>2 & queenforager_p<0.05 & queenforager_fold>2 | infertileforager_p<0.05 & infertileforager_fold>2 & queeninfertile_p<0.05 & queeninfertile_fold< -2 & fertileinfertile_p<0.05 & fertileinfertile_fold< -2 | queenforager_p<0.05 & queenforager_fold< -2 & infertileforager_p<0.05 & infertileforager_fold< -2 & fertileforager_p<0.05 & fertileforager_fold< -2 | fertileinfertile_p<0.05 & fertileinfertile_fold>2 & queenfertile_p<0.05 & queenfertile_fold< -2 & fertileforager_p<0.05 & fertileforager_fold>2)
+
+#b <- filter(a, queenfertile_p<0.05 & queenfertile_fold>0 & queeninfertile_p<0.05 & queeninfertile_fold>0 & queenforager_p<0.05 & queenforager_fold>0 | infertileforager_p<0.05 & infertileforager_fold>0 & queeninfertile_p<0.05 & queeninfertile_fold<0 & fertileinfertile_p<0.05 & fertileinfertile_fold<0 | queenforager_p<0.05 & queenforager_fold<0 & infertileforager_p<0.05 & infertileforager_fold<0 & fertileforager_p<0.05 & fertileforager_fold<0 | fertileinfertile_p<0.05 & fertileinfertile_fold>0 & queenfertile_p<0.05 & queenfertile_fold<0 & fertileforager_p<0.05 & fertileforager_fold>0)
+
+b <- filter(a, queenfertile_p<0.05 & abs(queenfertile_fold)>2 | queeninfertile_p<0.05 & abs(queeninfertile_fold)>2 | queenforager_p<0.05 & abs(queenforager_fold)>2 | fertileinfertile_p<0.05 & abs(fertileinfertile_fold)>2 | fertileforager_p<0.05 & abs(fertileforager_fold)>2 | infertileforager_p<0.05 & abs(infertileforager_fold)>2)
+
+q_up <- filter(b, (queen > forager) & (queen > fertile) & (queen > infertile))
+
+fert_up <- filter(b, (fertile > forager) & (fertile > queen) & (fertile > infertile))
+
+infert_up <- filter(b, (infertile > forager) & (infertile > queen) & (infertile > fertile))
+
+for_up <- filter(b, (forager > fertile) & (forager > queen) & (forager > infertile))
+
+###
+
+q_up <- filter(a, queenfertile_p<0.05 & queenfertile_fold>2 & queeninfertile_p<0.05 & queeninfertile_fold>2 & queenforager_p<0.05 & queenforager_fold>2)
+
+fert_up <- filter(a, queenfertile_p<0.05 & queenfertile_fold < -2 & fertileinfertile_p<0.05 & fertileinfertile_fold>2 & fertileforager_p<0.05 & fertileforager_fold>2)
+
+infert_up <- filter(a, fertileinfertile_p<0.05 & fertileinfertile_fold < -2 & queeninfertile_p<0.05 & queeninfertile_fold < -2 & infertileforager_p<0.05 & infertileforager_fold>2)
+
+for_up <- filter(a, infertileforager_p<0.05 & infertileforager_fold < -2 & fertileforager_p<0.05 & fertileforager_fold < -2 & queenforager_p<0.05 & queenforager_fold < -2)
+
+slices <- c(nrow(q_up), nrow(infert_up), nrow(for_up), nrow(fert_up)) 
+lbls <- c("q", "inf", "for", "fer")
+lbls <- paste(lbls, slices) # add percents to labels 
+pie(slices,labels = lbls, col=rainbow(length(lbls)),
+  	main="Pie Chart of Up-Regulated Genes")
+
+```
+
+# Table 1, up-regulation table
+
+## This table shows "Number of significantly up-regulated genes (FDR-P < 0.05; fold change >2) in the focal caste in comparison withthe other castes and the number of pair-specific genes (genesup-regulated in only this specific comparison) with the corre-sponding percentage in parentheses"
+
+
+```{r}
+
+qfert <- filter(a, queenfertile_p<0.05 & queenfertile_fold>2)
+qfert <- mutate(qfert) %>% select(ID)
+
+fertq <- filter(a, queenfertile_p<0.05 & queenfertile_fold < -2)
+fertq<- mutate(fertq) %>% select(ID)
+
+qinfert <- filter(a, queeninfertile_p<0.05 & queeninfertile_fold>2)
+qinfert <- mutate(qinfert) %>% select(ID)
+
+infertq <- filter(a, queeninfertile_p<0.05 & queeninfertile_fold < -2)
+infertq <- mutate(infertq) %>% select(ID)
+
+qfor <- filter(a, queenforager_p<0.05 & queenforager_fold>2)
+qfor <- mutate(qfor) %>% select(ID)
+
+forq <- filter(a, queenforager_p<0.05 & queenforager_fold < -2)
+forq <- mutate(forq) %>% select(ID)
+
+fertinfert <- filter(a, fertileinfertile_p<0.05 & fertileinfertile_fold>2)
+fertinfert <- mutate(fertinfert) %>% select(ID)
+
+infertfert <- filter(a, fertileinfertile_p<0.05 & fertileinfertile_fold < -2)
+infertfert <- mutate(infertfert) %>% select(ID)
+
+fertfor <- filter(a, fertileforager_p<0.05 & fertileforager_fold>2)
+fertfor <- mutate(fertfor) %>% select(ID)
+
+forfert <- filter(a, fertileforager_p<0.05 & fertileforager_fold < -2)
+forfert <- mutate(forfert) %>% select(ID)
+
+infertfor <- filter(a, infertileforager_p<0.05 & infertileforager_fold>2)
+infertfor <- mutate(infertfor) %>% select(ID)
+
+forinfert <- filter(a, infertileforager_p<0.05 & infertileforager_fold < -2)
+forinfert <- mutate(forinfert) %>% select(ID)
+###
+qfert <- filter(qfert, !ID %in% fertq & !ID %in% qinfert & !ID %in% infertq & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+fertq<- filter(fertq, !ID %in% qfert & !ID %in% qinfert & !ID %in% infertq & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+qinfert <- filter(qinfert, !ID %in% qfert & !ID %in% fertq & !ID %in% infertq & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+infertq <- filter(infertq, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+qfor <- filter(qfor, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+forq <- filter(forq, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+fertinfert <- filter(fertinfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+infertfert <- filter(infertfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+fertfor <- filter(fertfor, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
+forfert <- filter(forfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% infertfor & !ID %in% forinfert)
+infertfor <- filter(infertfor, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% forinfert)
+forinfert <- filter(forinfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor)
+
+
+
+
+```
+
+# Figure 4, vitellogenin bar graph
+
+## Here the authors focus in on a small group of differentially expressed genes since they relate heavily to female ant phenotype. This graph shows expression of different copies of the vitellogenin protein and the vitellogenin receptor.
+
+### I had to pull out the individual genes in question using their gene id as opposed to filtering for them in R using a keyword from their description. This was necessary because not all of these proteins can be found through text search for "vg" plus wildcards and not all can be found through text search for "vit" plus wildcards. Additionally, the authors did not use some genes whose descriptions contain these terms since they are just precursors to the proteins. There is not way to text filter by gene name or description for this set. You can only filter them using their specific IDs. 
+
+### I melted my existed data frame to fit it into the format required for a ggplot grouped bar graph.
+
+```{r}
+
+s <- filter(a, ID=="TlongiContigs_rep_c8852" | ID=="TlongiContigs_rep_c14651" | ID=="TlongiContigs_rep_c6184" | ID=="TlongiContigs_rep_c39314" | ID=="TlongiContigs_rep_c43820")
+s <- mutate(s) %>% select(ID, queen, fertile, infertile, forager)
+
+#reordering to fit paper
+levels(s$ID) <- c("TlongiContigs_rep_c8852", "TlongiContigs_rep_c14651", "TlongiContigs_rep_c6184", "TlongiContigs_rep_c39314", "TlongiContigs_rep_c43820")
+
+#reformatting
+new_melt <- melt(new, id.vars='ID')
+
+#gene expression is usually plotting by either log transforming the values or using a log scale, which is what the authors did. This is because values can vary by many orders of magnitude. 
+g <- ggplot(new_melt, aes(ID, value)) + geom_bar(aes(fill = variable), 
+   width = 0.4, position = position_dodge(width=0.5), stat="identity") + 
+scale_x_discrete(limits=c("TlongiContigs_rep_c8852", "TlongiContigs_rep_c14651", "TlongiContigs_rep_c6184", "TlongiContigs_rep_c39314", "TlongiContigs_rep_c43820"), labels=c("Vg2", "Vg3", "VgRec", "Vg1", "Vg6"), name="") + scale_y_log10(name="log RPKM") 
+
+g
+
+
+```
