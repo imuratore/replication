@@ -12,10 +12,11 @@ library(plyr)
 library(vegan)
 library(reshape2)
 library(VennDiagram)
+library(knitr)
 
 ```
 
-# Replication of figures 1, 3, and 4 of "Gene expression patterns associated with caste and reproductive status in ants: worker-specific genes are more derived than queen-specific ones" by Feldmeyer, Elsner, and Foitzik, 2013
+# Replication of figures 1, 3, and 4 (and Table 1) of "Gene expression patterns associated with caste and reproductive status in ants: worker-specific genes are more derived than queen-specific ones" by Feldmeyer, Elsner, and Foitzik, 2013
 
 ## This paper involved sequencing total RNA from four different phenotypes of female ant that occur in colonies of *Temnothorax longispinosus* 
 ## This is interesting because ant colonies are composed of one or more queens and their numerous worker offspring, who are usually full-, or sometimes half-sibs in terms of parentage but who actually share 75% as opposed to 50% of their DNA with full-sibs due to haplodiploidy in ants. Nonetheless, these nearly identical genomes produce extremely different looking and behaving phenotypes.
@@ -166,10 +167,6 @@ pie(slices,labels = lbls, col=rainbow(length(lbls)),
 
 ```{r}
 
-#b <- filter(a, queenfertile_p<0.05 & queenfertile_fold>2 & queeninfertile_p<0.05 & queeninfertile_fold>2 & queenforager_p<0.05 & queenforager_fold>2 | infertileforager_p<0.05 & infertileforager_fold>2 & queeninfertile_p<0.05 & queeninfertile_fold< -2 & fertileinfertile_p<0.05 & fertileinfertile_fold< -2 | queenforager_p<0.05 & queenforager_fold< -2 & infertileforager_p<0.05 & infertileforager_fold< -2 & fertileforager_p<0.05 & fertileforager_fold< -2 | fertileinfertile_p<0.05 & fertileinfertile_fold>2 & queenfertile_p<0.05 & queenfertile_fold< -2 & fertileforager_p<0.05 & fertileforager_fold>2)
-
-#b <- filter(a, queenfertile_p<0.05 & queenfertile_fold>0 & queeninfertile_p<0.05 & queeninfertile_fold>0 & queenforager_p<0.05 & queenforager_fold>0 | infertileforager_p<0.05 & infertileforager_fold>0 & queeninfertile_p<0.05 & queeninfertile_fold<0 & fertileinfertile_p<0.05 & fertileinfertile_fold<0 | queenforager_p<0.05 & queenforager_fold<0 & infertileforager_p<0.05 & infertileforager_fold<0 & fertileforager_p<0.05 & fertileforager_fold<0 | fertileinfertile_p<0.05 & fertileinfertile_fold>0 & queenfertile_p<0.05 & queenfertile_fold<0 & fertileforager_p<0.05 & fertileforager_fold>0)
-
 b <- filter(a, queenfertile_p<0.05 & abs(queenfertile_fold)>2 | queeninfertile_p<0.05 & abs(queeninfertile_fold)>2 | queenforager_p<0.05 & abs(queenforager_fold)>2 | fertileinfertile_p<0.05 & abs(fertileinfertile_fold)>2 | fertileforager_p<0.05 & abs(fertileforager_fold)>2 | infertileforager_p<0.05 & abs(infertileforager_fold)>2)
 
 q_up <- filter(b, (queen > forager) & (queen > fertile) & (queen > infertile))
@@ -179,6 +176,16 @@ fert_up <- filter(b, (fertile > forager) & (fertile > queen) & (fertile > infert
 infert_up <- filter(b, (infertile > forager) & (infertile > queen) & (infertile > fertile))
 
 for_up <- filter(b, (forager > fertile) & (forager > queen) & (forager > infertile))
+
+###
+
+q_up <- filter(a, queenfertile_p<0.05 & queenfertile_fold>0 & queeninfertile_p<0.05 & queeninfertile_fold>0 & queenforager_p<0.05 & queenforager_fold>0)
+
+fert_up <- filter(a, queenfertile_p<0.05 & queenfertile_fold < 0 & fertileinfertile_p<0.05 & fertileinfertile_fold>0 & fertileforager_p<0.05 & fertileforager_fold>0)
+
+infert_up <- filter(a, fertileinfertile_p<0.05 & fertileinfertile_fold < 0 & queeninfertile_p<0.05 & queeninfertile_fold < 0 & infertileforager_p<0.05 & infertileforager_fold>0)
+
+for_up <- filter(a, infertileforager_p<0.05 & infertileforager_fold < 0 & fertileforager_p<0.05 & fertileforager_fold < 0 & queenforager_p<0.05 & queenforager_fold < 0)
 
 ###
 
@@ -200,7 +207,7 @@ pie(slices,labels = lbls, col=rainbow(length(lbls)),
 
 # Table 1, up-regulation table
 
-## This table shows "Number of significantly up-regulated genes (FDR-P < 0.05; fold change >2) in the focal caste in comparison withthe other castes and the number of pair-specific genes (genesup-regulated in only this specific comparison) with the corre-sponding percentage in parentheses"
+## This table shows "Number of significantly up-regulated genes (FDR-P < 0.05; fold change >2) in the focal caste in comparison withthe other castes and the number of pair-specific genes (genes up-regulated in only this specific comparison) with the corresponding percentage in parentheses"
 
 
 ```{r}
@@ -241,21 +248,31 @@ infertfor <- mutate(infertfor) %>% select(ID)
 forinfert <- filter(a, infertileforager_p<0.05 & infertileforager_fold < -2)
 forinfert <- mutate(forinfert) %>% select(ID)
 ###
-qfert <- filter(qfert, !ID %in% fertq & !ID %in% qinfert & !ID %in% infertq & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-fertq<- filter(fertq, !ID %in% qfert & !ID %in% qinfert & !ID %in% infertq & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-qinfert <- filter(qinfert, !ID %in% qfert & !ID %in% fertq & !ID %in% infertq & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-infertq <- filter(infertq, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-qfor <- filter(qfor, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-forq <- filter(forq, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-fertinfert <- filter(fertinfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-infertfert <- filter(infertfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-fertfor <- filter(fertfor, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% forfert & !ID %in% infertfor & !ID %in% forinfert)
-forfert <- filter(forfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% infertfor & !ID %in% forinfert)
-infertfor <- filter(infertfor, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% forinfert)
-forinfert <- filter(forinfert, !ID %in% qfert & !ID %in% fertq & !ID %in% qinfert & !ID %in% infert & !ID %in% qfor & !ID %in% forq & !ID %in% fertinfert & !ID %in% infertfert & !ID %in% fertfor & !ID %in% forfert & !ID %in% infertfor)
+q_fert <- dplyr::setdiff(qfert, union(fertq, qinfert, infertq, qfor, forq, fertinfert, infertfert, fertfor, forfert, infertfor, forinfert))
+fert_q <- dplyr::setdiff(fertq, union(qfert, qinfert, infertq, qfor, forq, fertinfert, infertfert, fertfor, forfert, infertfor, forinfert))
+q_infert <- dplyr::setdiff(qinfert, union(qfert, fertq, infertq, qfor, forq, fertinfert, infertfert, fertfor, forfert, infertfor, forinfert))
+infert_q <- dplyr::setdiff(infertq, union(qfert, fertq, qinfert, qfor, forq, fertinfert, infertfert, fertfor, forfert, infertfor, forinfert))
+q_for <- dplyr::setdiff(qfor, union(qfert, fertq, qinfert, infertq, forq, fertinfert, infertfert, fertfor, forfert, infertfor, forinfert))
+for_q <- dplyr::setdiff(forq, union(qfert, fertq, qinfert, infertq, qfor, fertinfert, infertfert, fertfor, forfert, infertfor, forinfert))
+fert_infert <- dplyr::setdiff(fertinfert, union(qfert, fertq, qinfert, infertq, qfor, forq, infertfert, fertfor, forfert, infertfor, forinfert))
+infert_fert <- dplyr::setdiff(infertfert, union(qfert, fertq, qinfert, infertq, qfor, forq, fertinfert, fertfor, forfert, infertfor, forinfert))
+fert_for <- dplyr::setdiff(fertfor, union(qfert, fertq, qinfert, infertq, qfor, forq, fertinfert, infertfert, forfert, infertfor, forinfert))
+for_fert <- dplyr::setdiff(forfert, union(qfert, fertq, qinfert, infertq, qfor, forq, fertinfert, infertfert, fertfor, infertfor, forinfert))
+infert_for <- dplyr::setdiff(infertfor, union(qfert, fertq, qinfert, infertq, qfor, forq, fertinfert, infertfert, fertfor, forfert, forinfert))
+for_infert <- dplyr::setdiff(forinfert, union(qfert, fertq, qinfert, infertq, qfor, forq, fertinfert, infertfert, fertfor, forfert, infertfor))
 
+Total <- c(nrow(qfert), nrow(qinfert), nrow(qfor), nrow(fertq), nrow(fertinfert), nrow(fertfor), nrow(infertfert), nrow(infertq), nrow(infertfor),nrow(forq), nrow(forfert), nrow(forinfert))
 
+Pair_specific <- c(nrow(q_fert), nrow(q_infert), nrow(q_for), nrow(fert_q), nrow(fert_infert), nrow(fert_for), nrow(infert_fert), nrow(infert_q), nrow(infert_for),nrow(for_q), nrow(for_fert), nrow(for_infert))
 
+Pair_specific_percent <- Pair_specific/Total
+
+Focal_caste <- c("Queen", "", "", "Fertile worker", "", "", "Infertile worker", "", "", "Forager", "", "")
+Comparison <- c("fer", "inf", "fer", "q", "inf", "for", "q", "fer", "for", "q", "fer", "inf")
+
+table1 <- data.frame(Focal_caste, Comparison, Total, Pair_specific, Pair_specific_percent)
+
+knitr::kable(table1)
 
 ```
 
